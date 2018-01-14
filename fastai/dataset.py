@@ -69,20 +69,34 @@ def parse_csv_labels(fn, skip_header=True):
     label2idx = {v:k for k,v in enumerate(all_labels)}
     return sorted(fnames), csv_labels, all_labels, label2idx
 
+def parse_probs_csv(csv_file):
+    csv_lines = [o.strip().split(',')[1:] for o in open(csv_file)][1:]
+    fnames = [l[0] for l in csv_lines]
+    label_arr = np.array([o.strip().split(',')[2:] for o in open(csv_file)][1:], 
+                         dtype='float32')
+    with open(csv_file) as o:
+        all_labels = next(o).strip().split(',')[2:]
+    return fnames, label_arr, all_labels
+
 def nhot_labels(label2idx, csv_labels, fnames, c):
     all_idx = {k: n_hot([label2idx[o] for o in v], c)
                for k,v in csv_labels.items()}
     return np.stack([all_idx[o] for o in fnames])
 
-def csv_source(folder, csv_file, skip_header=True, suffix='', continuous=False):
-    fnames,csv_labels,all_labels,label2idx = parse_csv_labels(csv_file, skip_header)
-    full_names = [os.path.join(folder,fn+suffix) for fn in fnames]
-    if continuous:
-        label_arr = np.array([csv_labels[i] for i in fnames]).astype(np.float32)
+def csv_source(folder, csv_file, skip_header=True, suffix='', continuous=False,
+               probs=False):
+    if probs:
+        fnames, label_arr, all_labels = parse_probs_csv(csv_file)
+        full_names = [os.path.join(folder,fn+suffix) for fn in fnames]
     else:
-        label_arr = nhot_labels(label2idx, csv_labels, fnames, len(all_labels))
-        is_single = np.all(label_arr.sum(axis=1)==1)
-        if is_single: label_arr = np.argmax(label_arr, axis=1)
+        fnames,csv_labels,all_labels,label2idx = parse_csv_labels(csv_file, skip_header)
+        full_names = [os.path.join(folder,fn+suffix) for fn in fnames]
+        if continuous:
+            label_arr = np.array([csv_labels[i] for i in fnames]).astype(np.float32)
+        else:
+            label_arr = nhot_labels(label2idx, csv_labels, fnames, len(all_labels))
+            is_single = np.all(label_arr.sum(axis=1)==1)
+            if is_single: label_arr = np.argmax(label_arr, axis=1)
     return full_names, label_arr, all_labels
 
 class BaseDataset(Dataset):
@@ -115,6 +129,8 @@ class BaseDataset(Dataset):
     def is_multi(self): return False
     @property
     def is_reg(self): return False
+    @property
+    def is_prob(self): return True
 
 def open_image(fn):
     """ Opens an image using OpenCV given the file path.
@@ -284,6 +300,9 @@ class ImageClassifierData(ImageData):
     @property
     def is_multi(self): return self.trn_dl.dataset.is_multi
 
+    @property
+    def is_prob(self): return self.trn_dl.dataset.is_prob
+
     @staticmethod
     def get_ds(fn, trn, val, tfms, test=None, **kwargs):
         res = [
@@ -345,7 +364,8 @@ class ImageClassifierData(ImageData):
 
     @classmethod
     def from_csv(cls, path, folder, csv_fname, bs=64, tfms=(None,None),
-               val_idxs=None, suffix='', test_name=None, continuous=False, skip_header=True, num_workers=8):
+               val_idxs=None, suffix='', test_name=None, continuous=False, skip_header=True, num_workers=8,
+               probs=False):
         """ Read in images and their labels given as a CSV file.
 
         This method should be used when training image labels are given in an CSV file as opposed to
@@ -368,7 +388,8 @@ class ImageClassifierData(ImageData):
         Returns:
             ImageClassifierData
         """
-        fnames,y,classes = csv_source(folder, csv_fname, skip_header, suffix, continuous=continuous)
+        fnames,y,classes = csv_source(folder, csv_fname, skip_header, suffix, continuous=continuous,
+        probs=probs)
         ((val_fnames,trn_fnames),(val_y,trn_y)) = split_by_idx(val_idxs, np.array(fnames), y)
 
         test_fnames = read_dir(path, test_name) if test_name else None

@@ -26,8 +26,8 @@ class ConvnetBuilder():
         xtra_cut (int): # layers earlier than default to cut the model, detault is 0
     """
 
-    def __init__(self, f, c, is_multi, is_reg, ps=None, xtra_fc=None, xtra_cut=0):
-        self.f,self.c,self.is_multi,self.is_reg,self.xtra_cut = f,c,is_multi,is_reg,xtra_cut
+    def __init__(self, f, c, is_multi, is_reg, is_prob, ps=None, xtra_fc=None, xtra_cut=0):
+        self.f,self.c,self.is_multi,self.is_reg,self.xtra_cut,self.is_prob = f,c,is_multi,is_reg,xtra_cut, is_prob
         if ps is None: ps = [0.25,0.5]
         if xtra_fc is None: xtra_fc = [512]
         self.ps,self.xtra_fc = ps,xtra_fc
@@ -66,6 +66,7 @@ class ConvnetBuilder():
             res += self.create_fc_layer(ni, nf, p=self.ps[i], actn=nn.ReLU())
             ni=nf
         final_actn = nn.Sigmoid() if self.is_multi else nn.LogSoftmax()
+        final_actn = nn.Softmax() if self.is_prob else final_actn
         if self.is_reg: final_actn = None
         res += self.create_fc_layer(ni, self.c, p=self.ps[-1], actn=final_actn)
         return res
@@ -94,7 +95,8 @@ class ConvLearner(Learner):
 
     @classmethod
     def pretrained(cls, f, data, ps=None, xtra_fc=None, xtra_cut=0, **kwargs):
-        models = ConvnetBuilder(f, data.c, data.is_multi, data.is_reg, ps=ps, xtra_fc=xtra_fc, xtra_cut=xtra_cut)
+        models = ConvnetBuilder(f, data.c, data.is_multi, data.is_reg, data.is_prob, 
+                                ps=ps, xtra_fc=xtra_fc, xtra_cut=xtra_cut)
         return cls(data, models, **kwargs)
 
     @property
