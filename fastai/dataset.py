@@ -70,12 +70,12 @@ def parse_csv_labels(fn, skip_header=True):
     return sorted(fnames), csv_labels, all_labels, label2idx
 
 def parse_probs_csv(csv_file):
-    csv_lines = [o.strip().split(',')[1:] for o in open(csv_file)][1:]
+    csv_lines = [o.strip().split(',') for o in open(csv_file)][1:]
     fnames = [l[0] for l in csv_lines]
-    label_arr = np.array([o.strip().split(',')[2:] for o in open(csv_file)][1:], 
+    label_arr = np.array([o.strip().split(',')[1:] for o in open(csv_file)][1:], 
                          dtype='float32')
     with open(csv_file) as o:
-        all_labels = next(o).strip().split(',')[2:]
+        all_labels = next(o).strip().split(',')[1:]
     return fnames, label_arr, all_labels
 
 def nhot_labels(label2idx, csv_labels, fnames, c):
